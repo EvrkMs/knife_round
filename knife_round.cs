@@ -31,6 +31,7 @@
         [JsonPropertyName("StayMeesage")] public string StayMeesage { get; set; } = "Оставить сторону";
         [JsonPropertyName("PuaseWarmupTimerAfterKnif")] public bool PuaseWarmupTimerAfterKnif { get; set; } = true;
         [JsonPropertyName("WarmupTimeAfterKnif")] public int WarmupTimeAfterKnif { get; set; } = 60;
+        [JsonPropertyName("localizVoit")] public string localizVoit { get; set; } = "голосов";
 }
 
 public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig> 
@@ -424,8 +425,8 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
             foreach (var playerWin in winningPlayers)
             {
                 if (playerWin == null || !player.IsValid) continue;
-                playerWin.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!switch\x01 - {ChatColors.Red}{smena} голосов");
-                playerWin.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!stay\x01 - {ChatColors.Red}{ostavit} голосов"); // Изменение цвета AVA на фиолетовый
+                playerWin.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!switch{ChatColors.Red} - {smena} {Config.localizVoit}");
+                playerWin.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!stay{ChatColors.Red} - {ostavit} {Config.localizVoit}"); // Изменение цвета AVA на фиолетовый
             }
         }
     }
