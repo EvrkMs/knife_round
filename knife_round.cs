@@ -33,7 +33,7 @@
 public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig> 
     {
         public override string ModuleName => "Knife Round";
-        public override string ModuleVersion => "1.0.2";
+        public override string ModuleVersion => "1.0.3";
         public KnifeRoundConfig Config { get; set; } = new KnifeRoundConfig();
 
         internal static IStringLocalizer? Stringlocalizer;
@@ -138,16 +138,6 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
             }
 
             WinMessageSent = true; // Устанавливаем флаг сообщения о победе в чат
-        }
-    }
-
-
-    public void CheckPlayerCountAndSetWarmupTimer()
-    {
-        var playerCount = Utilities.GetPlayers().Count;
-        if (playerCount >= 10)
-        {
-            Server.ExecuteCommand("mp_warmup_pausetimer 0");
         }
     }
 
