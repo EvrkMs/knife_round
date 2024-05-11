@@ -1,35 +1,45 @@
-    using CounterStrikeSharp.API;
-    using CounterStrikeSharp.API.Core;
-    using System.Text.Json.Serialization;
-    using CounterStrikeSharp.API.Modules.Commands;
-    using CounterStrikeSharp.API.Modules.Utils;
-    using CounterStrikeSharp.API.Modules.Cvars;
-    using CounterStrikeSharp.API.Core.Attributes.Registration;
-    using System.Diagnostics;
-    using System.IO;
-    using Microsoft.Extensions.Localization;
-    using CounterStrikeSharp.API.Modules.Timers;
-    using CounterStrikeSharp.API.Core.Attributes;
-    using System.Text.Json;
+using CounterStrikeSharp.API;
+using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Core.Attributes;
+using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Timers;
+using CounterStrikeSharp.API.Modules.Utils;
+using Microsoft.Extensions.Localization;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
-    namespace Knife_Round;
-
+namespace Knife_Round
+{
     [MinimumApiVersion(164)]
     public class KnifeRoundConfig : BasePluginConfig
     {
-        [JsonPropertyName("GiveArmorOnKnifeRound")] public int GiveArmorOnKnifeRound { get; set; } = 1;
-        [JsonPropertyName("FreezeOnVote")] public bool FreezeOnVote { get; set; } = false;
-        [JsonPropertyName("BlockTeamChangeOnVoteAndKnife")] public bool BlockTeamChangeOnVoteAndKnife { get; set; } = true;
-        [JsonPropertyName("AllowAllTalkOnKnifeRound")] public bool AllowAllTalkOnKnifeRound { get; set; } = false;
-        [JsonPropertyName("KnifeRoundTimer")] public float KnifeRoundTimer { get; set; } = 2;
-        [JsonPropertyName("VoteTimer")] public float VoteTimer { get; set; } = 2;
-        [JsonPropertyName("MessageKnifeStartTimer")] public float MessageKnifeStartTimer { get; set; } = 15;
-        [JsonPropertyName("AfterWinningRestartXTimes")] public int AfterWinningRestartXTimes { get; set; } = 1;
-        [JsonPropertyName("ChatDisplayName")] public string ChatDisplayName { get; set; } = "AVA";
-
+        [JsonPropertyName("GiveArmorOnKnifeRound")]
+        public int GiveArmorOnKnifeRound { get; set; } = 1;
+        [JsonPropertyName("FreezeOnVote")]
+        public bool FreezeOnVote { get; set; } = false;
+        [JsonPropertyName("BlockTeamChangeOnVoteAndKnife")]
+        public bool BlockTeamChangeOnVoteAndKnife { get; set; } = true;
+        [JsonPropertyName("KnifeRoundTimer")]
+        public float KnifeRoundTimer { get; set; } = 2;
+        [JsonPropertyName("VoteTimer")]
+        public float VoteTimer { get; set; } = 2;
+        [JsonPropertyName("AfterWinningRestartXTimes")]
+        public int AfterWinningRestartXTimes { get; set; } = 1;
+        [JsonPropertyName("ChatDisplayName")]
+        public string ChatDisplayName { get; set; } = "AVA";
+        [JsonPropertyName("TeamIntroTimeKnifeStart")]
+        public float TeamIntroTimeKnifeStart { get; set; } = 3;
+        [JsonPropertyName("TeamIntroTimeAfterKnife")]
+        public float TeamIntroTimeAfterKnife { get; set; } = 3;
+        [JsonPropertyName("StartMessage")]
+        public string StartMessage { get; set; } = "Ножи на готове";
     }
 
-public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig> 
+    public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
     {
         public override string ModuleName => "Knife Round";
         public override string ModuleVersion => "1.0.2";
@@ -38,30 +48,23 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         internal static IStringLocalizer? Stringlocalizer;
         private Stopwatch stopwatch = new Stopwatch();
         private Dictionary<ulong, bool> OnSpawn = new Dictionary<ulong, bool>();
-        public float mp_roundtime;
-        public string mp_roundtimeFixed = "";
-        public float mp_roundtime_defuse;
-        public float mp_team_intro_time;
-        public int currentVotesT;
-        public int currentVotesCT;
-        public bool knifemode = false;
-        public bool CTWINNER = false;
-        public bool TWINNER = false;
-        public bool BlockTeam = false;
-        public bool onroundstart = false;
-        public bool knifestarted = false;
-        public float timer;
-        public string targetPlayerName = "";
-        private List<ulong> _rtvCountCT = new();
-        private List<ulong> _rtvCountT = new();
-        public int smena = 0;
-        public int ostavit = 0;
+        private int _readyCount = 0;
+        private List<ulong> _rtvCountCT = new List<ulong>();
+        private List<ulong> _rtvCountT = new List<ulong>();
+        private bool _knifemode = false;
+        private bool _ctWinner = false;
+        private bool _tWinner = false;
+        private bool _blockTeam = false;
+        private bool _onRoundStart = false;
+        private bool _knifeStarted = false;
+        private float _timer = 0;
+        private string _targetPlayerName = "";
 
         public void OnConfigParsed(KnifeRoundConfig config)
         {
             Config = config;
             Stringlocalizer = Localizer;
-            if(Config.GiveArmorOnKnifeRound < 0 || Config.GiveArmorOnKnifeRound > 2)
+            if (Config.GiveArmorOnKnifeRound < 0 || Config.GiveArmorOnKnifeRound > 2)
             {
                 config.GiveArmorOnKnifeRound = 0;
             }
@@ -76,13 +79,13 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
 
         private HookResult OnCommandJoinTeam(CCSPlayerController? player, CommandInfo commandInfo)
         {
-            if (Config.BlockTeamChangeOnVoteAndKnife && BlockTeam)
+            if (Config.BlockTeamChangeOnVoteAndKnife && _blockTeam)
             {
                 return HookResult.Handled;
             }
             return HookResult.Continue;
         }
-    public bool WinMessageSent = false; // Добавляем флаг для отслеживания отправленного сообщения о победе в чат
+        public bool WinMessageSent = false; // Добавляем флаг для отслеживания отправленного сообщения о победе в чат
 
     public void OnTick()
     {
@@ -141,6 +144,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
     [GameEventHandler]
     public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
+        string o = "[";
         if (@event == null) return HookResult.Continue;
         if (onroundstart)
         {
@@ -148,18 +152,14 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
             {
                 BlockTeam = true;
                 knifestarted = true;
-                AddTimer(Config.MessageKnifeStartTimer, () =>
+                // Вывод сообщения "[AVA] Ножи на готове?" при начале ножевого раунда
+                Utilities.GetPlayers().ForEach(player =>
                 {
-                    knifestarted = false;
-                    // Вывод сообщения "[AVA] Ножи на готове?" при начале ножевого раунда
-                    Utilities.GetPlayers().ForEach(player =>
+                    if (player != null && player.IsValid)
                     {
-                        if (player != null && player.IsValid)
-                        {
-                            player.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Blue}Ножи\x01 на готове?");
-                        }
-                    });
-                }, TimerFlags.STOP_ON_MAPCHANGE);
+                        player.PrintToChat($"{ChatColors.Blue}[{ChatColors.Purple}{Config.ChatDisplayName}\x01]{ChatColors.Blue}{Config.StartMessage}");
+                    }
+                });
             }
         }
         else if (!onroundstart)
@@ -174,11 +174,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         {
             Server.NextFrame(() =>
             {
-                Server.ExecuteCommand($"mp_team_intro_time 3.0; sv_buy_status_override 3; mp_roundtime {Config.KnifeRoundTimer}; mp_roundtime_defuse {Config.KnifeRoundTimer}; mp_give_player_c4 0");
-                if (Config.AllowAllTalkOnKnifeRound)
-                {
-                    Server.ExecuteCommand($"sv_alltalk true; sv_deadtalk true; sv_full_alltalk true; sv_talk_enemy_dead true; sv_talk_enemy_living true;");
-                }
+                Server.ExecuteCommand($"mp_team_intro_time {Config.TeamIntroTimeKnifeStart}; sv_buy_status_override 3; mp_roundtime {Config.KnifeRoundTimer}; mp_roundtime_defuse {Config.KnifeRoundTimer}; mp_give_player_c4 0");
             });
         }
 
@@ -301,6 +297,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         // Добавляем разминку
         AddTimer(5.0f, () =>
         {
+            Server.ExecuteCommand("mp_warmup_pausetimer 1");
             // Запускаем разминку
             Server.ExecuteCommand("mp_warmup_start");
         }, TimerFlags.STOP_ON_MAPCHANGE);
@@ -390,7 +387,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
                     int x = Config.AfterWinningRestartXTimes;
                     for (int i = 1; i <= x; i++)
                     {
-                        float interval = i * 2.0f;
+                        float interval = i * 0.1f;
 
                         AddTimer(interval, () =>
                         {
@@ -402,11 +399,11 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
                                 string replacedValue = test.Replace(',', '.');
                                 string replacedValue2 = test2.Replace(',', '.');
                                 string replacedValue3 = test3.Replace(',', '.');
-                                Server.ExecuteCommand($"mp_team_intro_time {replacedValue3}; sv_buy_status_override -1; mp_roundtime {replacedValue}; mp_roundtime_defuse {replacedValue2}; mp_give_player_c4 1; mp_restartgame 1");
+                                Server.ExecuteCommand($"mp_team_intro_time {Config.TeamIntroTimeAfterKnife}; mp_warmup_start; mp_freezetime 15; sv_buy_status_override -1; mp_roundtime {replacedValue}; mp_roundtime_defuse {replacedValue2}; mp_give_player_c4 1; mp_warmup_end;");
                             }
                             else
                             {
-                                Server.ExecuteCommand($"mp_team_intro_time 3.0; sv_buy_status_override -1; mp_roundtime {mp_roundtime}; mp_roundtime_defuse {mp_roundtime_defuse}; mp_give_player_c4 1; mp_warmup_end; mp_restartgame 1");
+                                Server.ExecuteCommand($"mp_team_intro_time {Config.TeamIntroTimeAfterKnife}; mp_warmup_start; mp_freezetime 15; sv_buy_status_override -1; mp_roundtime {mp_roundtime}; mp_roundtime_defuse {mp_roundtime_defuse}; mp_give_player_c4 1; mp_warmup_end;");
                             }
                         }, TimerFlags.STOP_ON_MAPCHANGE);
                     }
