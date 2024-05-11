@@ -4,7 +4,7 @@
 
 Metamod:Source
 
-CounterStrikeSharp
+[CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/releases)
 
 
 Ножевой раунд после разминки. По окончанию разминки начиначется голосование команды победителей с помощью команд !switch и !stay
