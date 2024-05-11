@@ -26,6 +26,7 @@
         [JsonPropertyName("MessageKnifeStartTimer")] public float MessageKnifeStartTimer { get; set; } = 15;
         [JsonPropertyName("AfterWinningRestartXTimes")] public int AfterWinningRestartXTimes { get; set; } = 1;
         [JsonPropertyName("ChatDisplayName")] public string ChatDisplayName { get; set; } = "AVA";
+
     }
 
 public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig> 
