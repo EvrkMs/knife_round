@@ -2,7 +2,7 @@
 
 Требования:
 
-Metamod:Source
+[Metamod:Source](https://www.sourcemm.net/downloads.php/?branch=master)
 
 [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/releases)
 
