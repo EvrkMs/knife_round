@@ -26,7 +26,11 @@
         [JsonPropertyName("TeamIntroTimeKnifeStart")] public float TeamIntroTimeKnifeStart { get; set; } = 3;
         [JsonPropertyName("TeamIntroTimeAfterKnife")] public float TeamIntroTimeAfterKnife { get; set; } = 3;
         [JsonPropertyName("StartMessage")] public string StartMessage { get; set; } = "Ножи на готове";
-
+        [JsonPropertyName("VoitMessgae")] public string VoitMessgae { get; set; } = "Начало голосования";
+        [JsonPropertyName("SwitchMeesage")] public string SwitchMeesage { get; set; } = "Смена стороны";
+        [JsonPropertyName("StayMeesage")] public string StayMeesage { get; set; } = "Оставить сторону";
+        [JsonPropertyName("PuaseWarmupTimerAfterKnif")] public bool PuaseWarmupTimerAfterKnif { get; set; } = true;
+        [JsonPropertyName("WarmupTimeAfterKnif")] public int WarmupTimeAfterKnif { get; set; } = 60;
 }
 
 public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig> 
@@ -130,9 +134,9 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
             foreach (var player in winningPlayers)
             {
                 if (player == null || !player.IsValid) continue;
-                player.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] Начало голосование"); // Изменение цвета AVA на фиолетовый
-                player.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!switch\x01 - смена стороны");
-                player.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!stay\x01 - оставить сторону"); // Изменение цвета AVA на фиолетовый
+                player.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Green}{Config.VoitMessgae}"); // Изменение цвета AVA на фиолетовый
+                player.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!switch{ChatColors.Green} - {Config.SwitchMeesage}");
+                player.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!stay{ChatColors.Green} - {Config.StayMeesage}"); // Изменение цвета AVA на фиолетовый
             }
 
             WinMessageSent = true; // Устанавливаем флаг сообщения о победе в чат
@@ -142,7 +146,6 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
     [GameEventHandler]
     public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
-        string o = "[";
         if (@event == null) return HookResult.Continue;
         if (onroundstart)
         {
@@ -294,7 +297,14 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         // Добавляем разминку
         AddTimer(5.0f, () =>
         {
-            Server.ExecuteCommand("mp_warmup_pausetimer 1");
+            if (Config.PuaseWarmupTimerAfterKnif == true)
+            {
+                Server.ExecuteCommand("mp_warmup_pausetimer 1");
+            }
+            else
+            {
+                Server.ExecuteCommand($"mp_warmuptime {Config.WarmupTimeAfterKnif}");
+            }
             // Запускаем разминку
             Server.ExecuteCommand("mp_warmup_start");
         }, TimerFlags.STOP_ON_MAPCHANGE);
