@@ -72,7 +72,6 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
 
         public override void Load(bool hotReload)
         {
-            Server.ExecuteCommand("mp_warmup_pausetimer 1");
             AddCommandListener("jointeam", OnCommandJoinTeam, HookMode.Pre);
             RegisterListener<Listeners.OnTick>(OnTick);
             RegisterListener<Listeners.OnMapEnd>(OnMapEnd);
