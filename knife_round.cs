@@ -21,7 +21,6 @@
         [JsonPropertyName("FreezeOnVote")] public bool FreezeOnVote { get; set; } = false;
         [JsonPropertyName("BlockTeamChangeOnVoteAndKnife")] public bool BlockTeamChangeOnVoteAndKnife { get; set; } = true;
         [JsonPropertyName("KnifeRoundTimer")] public float KnifeRoundTimer { get; set; } = 2;
-        [JsonPropertyName("VoteTimer")] public float VoteTimer { get; set; } = 2;
         [JsonPropertyName("AfterWinningRestartXTimes")] public int AfterWinningRestartXTimes { get; set; } = 1;
         [JsonPropertyName("ChatDisplayName")] public string ChatDisplayName { get; set; } = "AVA";
         [JsonPropertyName("TeamIntroTimeKnifeStart")] public float TeamIntroTimeKnifeStart { get; set; } = 3;
@@ -51,7 +50,6 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         public bool BlockTeam = false;
         public bool onroundstart = false;
         public bool knifestarted = false;
-        public float timer;
         public string targetPlayerName = "";
         private List<ulong> _rtvCountCT = new();
         private List<ulong> _rtvCountT = new();
@@ -250,7 +248,6 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         var playerEntities = Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller");
         
         stopwatch.Start();
-        timer = Config.VoteTimer;
         int countt = 0;
         int countct = 0;
 
