@@ -1,4 +1,4 @@
-#h1 #Knife Round
+# Knife Round
 
 Требования:
 
