@@ -26,18 +26,18 @@
         [JsonPropertyName("TeamIntroTimeKnifeStart")] public float TeamIntroTimeKnifeStart { get; set; } = 3;
         [JsonPropertyName("TeamIntroTimeAfterKnife")] public float TeamIntroTimeAfterKnife { get; set; } = 3;
         [JsonPropertyName("StartMessage")] public string StartMessage { get; set; } = "Ножи на готове";
-        [JsonPropertyName("VoitMessgae")] public string VoitMessgae { get; set; } = "Начало голосования";
-        [JsonPropertyName("SwitchMeesage")] public string SwitchMeesage { get; set; } = "Смена стороны";
-        [JsonPropertyName("StayMeesage")] public string StayMeesage { get; set; } = "Оставить сторону";
-        [JsonPropertyName("PuaseWarmupTimerAfterKnif")] public bool PuaseWarmupTimerAfterKnif { get; set; } = true;
-        [JsonPropertyName("WarmupTimeAfterKnif")] public int WarmupTimeAfterKnif { get; set; } = 60;
-        [JsonPropertyName("localizVoit")] public string localizVoit { get; set; } = "голосов";
+        [JsonPropertyName("VoteMessage")] public string VoitMessgae { get; set; } = "Начало голосования";
+        [JsonPropertyName("SwitchMessage")] public string SwitchMeesage { get; set; } = "Смена стороны";
+        [JsonPropertyName("StayMessage")] public string StayMeesage { get; set; } = "Оставить сторону";
+        [JsonPropertyName("PauseWarmupTimerAfterKnife")] public bool PuaseWarmupTimerAfterKnif { get; set; } = true;
+        [JsonPropertyName("WarmupTimeAfterKnife")] public int WarmupTimeAfterKnif { get; set; } = 60;
+        [JsonPropertyName("LocalizedVote")] public string localizVoit { get; set; } = "votes";
 }
 
 public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig> 
     {
         public override string ModuleName => "Knife Round";
-        public override string ModuleVersion => "1.0.3";
+        public override string ModuleVersion => "1.0.6";
         public KnifeRoundConfig Config { get; set; } = new KnifeRoundConfig();
 
         internal static IStringLocalizer? Stringlocalizer;
@@ -61,6 +61,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         public int smena = 0;
         public int ostavit = 0;
         private int readyCount = 0;
+        public bool teamCommandSelected = false;
 
 
     public void OnConfigParsed(KnifeRoundConfig config)
@@ -244,13 +245,14 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         return HookResult.Continue;
     }
 
+    [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
     [GameEventHandler(HookMode.Post)]
     public HookResult OnRoundEnd(EventRoundEnd @event, GameEventInfo info)
     {
         if (@event == null || !knifemode) return HookResult.Continue;
-        
+
         var playerEntities = Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller");
-        
+
         stopwatch.Start();
         int countt = 0;
         int countct = 0;
@@ -298,18 +300,90 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         // Добавляем разминку
         AddTimer(5.0f, () =>
         {
-            if (Config.PuaseWarmupTimerAfterKnif == true)
+            if (Config.PuaseWarmupTimerAfterKnif)
             {
-                Server.ExecuteCommand("mp_warmup_pausetimer 1");
+                if (teamCommandSelected == false)
+                {
+                    Server.ExecuteCommand("mp_warmup_pausetimer 1");
+                }
             }
             else
             {
-                Server.ExecuteCommand($"mp_warmuptime {Config.WarmupTimeAfterKnif}");
-            }
-            // Запускаем разминку
-            Server.ExecuteCommand("mp_warmup_start");
+                    float waitTime = Config.WarmupTimeAfterKnif;
+                    Server.ExecuteCommand($"mp_warmuptime {waitTime}");
+
+                    // Запускаем разминку
+                    Server.ExecuteCommand("mp_warmup_start");
+                    AddTimer(waitTime, () =>
+                    {
+                        if (teamCommandSelected == false)
+                        {
+                             // Генерируем случайное число для выбора команды
+                             Random random = new Random();
+                             int randomCommand = random.Next(2);
+
+                             // Выбираем команду в зависимости от случайного числа
+                             if (randomCommand == 0)
+                             {
+                                 int switchTeam = 1;
+                                 var teamToSwitch = switchTeam == 0 ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
+                                 foreach (var pl in Utilities.GetPlayers().FindAll(x => x.IsValid))
+                                 {
+                                     pl.SwitchTeam(teamToSwitch);
+                                 }
+                                 ServerStartMatch();
+                             }
+                             else
+                             {
+                                 ServerStartMatch();
+                             }
+                        }
+                        else
+                        {
+                            return;
+                        }
+                    }, TimerFlags.STOP_ON_MAPCHANGE);
+                }
         }, TimerFlags.STOP_ON_MAPCHANGE);
+
         return HookResult.Continue;
+    }
+
+    public void ServerStartMatch()
+    {
+        Server.NextFrame(() =>
+        {
+            _rtvCountT.Clear();
+            _rtvCountCT.Clear();
+            TWINNER = false;
+            CTWINNER = false;
+            BlockTeam = false;
+            teamCommandSelected = true;
+            int x = Config.AfterWinningRestartXTimes;
+            for (int i = 1; i <= x; i++)
+            {
+                float interval = i * 0.1f;
+
+                AddTimer(interval, () =>
+                {
+                    string test = mp_roundtime.ToString();
+                    string test2 = mp_roundtime_defuse.ToString();
+                    string test3 = mp_team_intro_time.ToString();
+                    if (test.Contains(',') || test2.Contains(',') || test3.Contains(','))
+                    {
+                        string replacedValue = test.Replace(',', '.');
+                        string replacedValue2 = test2.Replace(',', '.');
+                        string replacedValue3 = test3.Replace(',', '.');
+                        Server.ExecuteCommand($"mp_team_intro_time {Config.TeamIntroTimeAfterKnife}; mp_warmup_start; mp_freezetime 15; sv_buy_status_override -1; mp_roundtime {replacedValue}; mp_roundtime_defuse {replacedValue2}; mp_give_player_c4 1; mp_warmup_end;");
+                    }
+                    else
+                    {
+                        Server.ExecuteCommand($"mp_team_intro_time {Config.TeamIntroTimeAfterKnife}; mp_warmup_start; mp_freezetime 15; sv_buy_status_override -1; mp_roundtime {mp_roundtime}; mp_roundtime_defuse {mp_roundtime_defuse}; mp_give_player_c4 1; mp_warmup_end;");
+                    }
+                }, TimerFlags.STOP_ON_MAPCHANGE);
+            }
+        });
+
     }
 
     [ConsoleCommand("switch", "Switch teams after knife round.")]
@@ -366,6 +440,16 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
             {
                 smena++;
             }
+            var winningTeam = TWINNER ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
+            // Поиск всех игроков на победившей стороне и отправка каждому из них сообщения
+            var winningPlayers = Utilities.GetPlayers().FindAll(p => p.TeamNum == (int)winningTeam);
+
+            foreach (var playerWin in winningPlayers)
+            {
+                if (playerWin == null || !player.IsValid) continue;
+                playerWin.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!switch{ChatColors.Red} - {smena} {Config.localizVoit}");
+                playerWin.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!stay{ChatColors.Red} - {ostavit} {Config.localizVoit}"); // Изменение цвета AVA на фиолетовый
+            }
 
             if (otherRtvCount.Contains(player!.SteamID)) return;
             otherRtvCount.Add(player.SteamID);
@@ -385,48 +469,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
                     }
                 }
 
-                Server.NextFrame(() =>
-                {
-                    _rtvCountT.Clear();
-                    _rtvCountCT.Clear();
-                    TWINNER = false;
-                    CTWINNER = false;
-                    BlockTeam = false;
-                    int x = Config.AfterWinningRestartXTimes;
-                    for (int i = 1; i <= x; i++)
-                    {
-                        float interval = i * 0.1f;
-
-                        AddTimer(interval, () =>
-                        {
-                            string test = mp_roundtime.ToString();
-                            string test2 = mp_roundtime_defuse.ToString();
-                            string test3 = mp_team_intro_time.ToString();
-                            if (test.Contains(',') || test2.Contains(',') || test3.Contains(','))
-                            {
-                                string replacedValue = test.Replace(',', '.');
-                                string replacedValue2 = test2.Replace(',', '.');
-                                string replacedValue3 = test3.Replace(',', '.');
-                                Server.ExecuteCommand($"mp_team_intro_time {Config.TeamIntroTimeAfterKnife}; mp_warmup_start; mp_freezetime 15; sv_buy_status_override -1; mp_roundtime {replacedValue}; mp_roundtime_defuse {replacedValue2}; mp_give_player_c4 1; mp_warmup_end;");
-                            }
-                            else
-                            {
-                                Server.ExecuteCommand($"mp_team_intro_time {Config.TeamIntroTimeAfterKnife}; mp_warmup_start; mp_freezetime 15; sv_buy_status_override -1; mp_roundtime {mp_roundtime}; mp_roundtime_defuse {mp_roundtime_defuse}; mp_give_player_c4 1; mp_warmup_end;");
-                            }
-                        }, TimerFlags.STOP_ON_MAPCHANGE);
-                    }
-                });
-            }
-
-            var winningTeam = TWINNER ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
-            // Поиск всех игроков на победившей стороне и отправка каждому из них сообщения
-            var winningPlayers = Utilities.GetPlayers().FindAll(p => p.TeamNum == (int)winningTeam);
-
-            foreach (var playerWin in winningPlayers)
-            {
-                if (playerWin == null || !player.IsValid) continue;
-                playerWin.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!switch{ChatColors.Red} - {smena} {Config.localizVoit}");
-                playerWin.PrintToChat($"[{ChatColors.Purple}{Config.ChatDisplayName}\x01] {ChatColors.Purple}!stay{ChatColors.Red} - {ostavit} {Config.localizVoit}"); // Изменение цвета AVA на фиолетовый
+                ServerStartMatch();
             }
         }
     }
@@ -446,6 +489,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         currentVotesT = 0;
         currentVotesCT = 0;
         readyCount = 0;
+        teamCommandSelected = false;
     }
 
     private void OnMapEnd()
@@ -464,5 +508,6 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         currentVotesCT = 0;
         smena = 0;
         ostavit = 0;
+        teamCommandSelected = false;
     }
 }
