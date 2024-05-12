@@ -1,15 +1,15 @@
-## [Knife Round]
+# [Knife Round]
 
-# [Requirement]:
+## [Requirement]:
 
 [Metamod:Source](https://www.sourcemm.net/downloads.php/?branch=master)
 
 [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/releases)
 
-# [description]
+## [description]
 Knife round after warm-up. At the end of the warm-up, the voting of the winning team begins with the commands !switch and !stay
 
-# [Config]
+## [Config]
 
 ```json
   // Give Armor On Knife Round?
@@ -67,5 +67,5 @@ Knife round after warm-up. At the end of the warm-up, the voting of the winning 
 ```
 
 
-# Начаотный проект
+## Начальный проект
 изначальный проект https://github.com/oqyh/cs2-Knife-Round, но переделал ближе к тому, что на Faciet, но пока что не могу сделать под систему где есть капитан
