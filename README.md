@@ -67,5 +67,5 @@ Knife round after warm-up. At the end of the warm-up, the voting of the winning 
 ```
 
 
-## Начальный проект
-изначальный проект https://github.com/oqyh/cs2-Knife-Round, но переделал ближе к тому, что на Faciet, но пока что не могу сделать под систему где есть капитан
+## [initial project]
+I started with the original project https://github.com/oqyh/cs2-Knife-Round, but I've modified it to be closer to what's on Faceit. However, I'm currently unable to adapt it to a system where there is a captain.
