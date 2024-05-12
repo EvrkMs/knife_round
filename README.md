@@ -6,7 +6,7 @@
 
 [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/releases)
 
-## [description]
+## [Description]
 Knife round after warm-up. At the end of the warm-up, the voting of the winning team begins with the commands !switch and !stay
 
 ## [Config]
@@ -67,5 +67,5 @@ Knife round after warm-up. At the end of the warm-up, the voting of the winning 
 ```
 
 
-## [initial project]
+## [Initial project]
 I started with the original project https://github.com/oqyh/cs2-Knife-Round, but I've modified it to be closer to what's on Faceit. However, I'm currently unable to adapt it to a system where there is a captain.
