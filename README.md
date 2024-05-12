@@ -11,7 +11,7 @@
 
 # По настройкам
 
-[knife_round.json](https://github.com/EvrkMs/knife_round/files/15285417/knife_round.json){
+```json
   // Give Armor On Knife Round?
   // (0) = No
   // (1) = Give Armor
@@ -64,7 +64,7 @@
 
   //-----------------------------------------------------------------------------------------
   "ConfigVersion": 1
-}
+```
 
 
 # Начаотный проект
