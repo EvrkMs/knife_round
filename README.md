@@ -1,15 +1,15 @@
-# Knife Round
+## [Knife Round]
 
-Требования:
+# [Requirement]:
 
 [Metamod:Source](https://www.sourcemm.net/downloads.php/?branch=master)
 
 [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/releases)
 
+# [description]
+Knife round after warm-up. At the end of the warm-up, the voting of the winning team begins with the commands !switch and !stay
 
-Ножевой раунд после разминки. По окончанию разминки начиначется голосование команды победителей с помощью команд !switch и !stay
-
-# Config
+# [Config]
 
 ```json
   // Give Armor On Knife Round?
