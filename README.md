@@ -6,8 +6,10 @@
 
 [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp/releases)
 
+
 ## [Description]
-Knife round after warm-up. At the end of the warm-up, the voting of the winning team begins with the commands !switch and !stay
+I'm trying to make a plugin for 5v5 like on Faceit, which includes a knife round after the warm-up. At the end of the warm-up, the voting of the winning team begins with the commands !switch and !stay to determine who will start the game on either side of the map. This adds an element of strategy and fairness, as teams can choose the most preferable side to start the match.
+
 
 ## [Config]
 
