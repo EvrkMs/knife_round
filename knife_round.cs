@@ -6,11 +6,9 @@
     using CounterStrikeSharp.API.Modules.Cvars;
     using CounterStrikeSharp.API.Core.Attributes.Registration;
     using System.Diagnostics;
-    using System.IO;
     using Microsoft.Extensions.Localization;
     using CounterStrikeSharp.API.Modules.Timers;
     using CounterStrikeSharp.API.Core.Attributes;
-    using System.Text.Json;
 
     namespace Knife_Round;
 
@@ -386,7 +384,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
 
     }
 
-    [ConsoleCommand("switch", "Switch teams after knife round.")]
+    [ConsoleCommand("css_switch", "Switch teams after knife round.")]
     [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
     public void SwitchTeamCommand(CCSPlayerController? player, CommandInfo cmd)
     {
@@ -397,7 +395,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         }
     }
 
-    [ConsoleCommand("stay", "Stay on current team after knife round.")]
+    [ConsoleCommand("css_stay", "Stay on current team after knife round.")]
     public void StayTeamCommand(CCSPlayerController? player, CommandInfo cmd)
     {
         // ѕроверка, €вл€етс€ ли игрок победителем
