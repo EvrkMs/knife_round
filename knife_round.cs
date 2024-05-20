@@ -32,34 +32,34 @@
         [JsonPropertyName("LocalizedVote")] public string localizVoit { get; set; } = "votes";
 }
 
-public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig> 
-    {
-        public override string ModuleName => "Knife Round";
-        public override string ModuleVersion => "1.0.6";
-        public KnifeRoundConfig Config { get; set; } = new KnifeRoundConfig();
+public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
+{
+    public override string ModuleName => "Knife Round";
+    public override string ModuleVersion => "1.0.6";
+    public KnifeRoundConfig Config { get; set; } = new KnifeRoundConfig();
 
-        internal static IStringLocalizer? Stringlocalizer;
-        private Stopwatch stopwatch = new Stopwatch();
-        private Dictionary<ulong, bool> OnSpawn = new Dictionary<ulong, bool>();
-        public float mp_roundtime;
-        public string mp_roundtimeFixed = "";
-        public float mp_roundtime_defuse;
-        public float mp_team_intro_time;
-        public int currentVotesT;
-        public int currentVotesCT;
-        public bool knifemode = false;
-        public bool CTWINNER = false;
-        public bool TWINNER = false;
-        public bool BlockTeam = false;
-        public bool onroundstart = false;
-        public bool knifestarted = false;
-        public string targetPlayerName = "";
-        private List<ulong> _rtvCountCT = new();
-        private List<ulong> _rtvCountT = new();
-        public int smena = 0;
-        public int ostavit = 0;
-        private int readyCount = 0;
-        public bool teamCommandSelected = false;
+    internal static IStringLocalizer? Stringlocalizer;
+    private Stopwatch stopwatch = new Stopwatch();
+    private Dictionary<ulong, bool> OnSpawn = new Dictionary<ulong, bool>();
+    public float mp_roundtime;
+    public string mp_roundtimeFixed = "";
+    public float mp_roundtime_defuse;
+    public float mp_team_intro_time;
+    public int currentVotesT;
+    public int currentVotesCT;
+    public bool knifemode = false;
+    public bool CTWINNER = false;
+    public bool TWINNER = false;
+    public bool BlockTeam = false;
+    public bool onroundstart = false;
+    public bool knifestarted = false;
+    public string targetPlayerName = "";
+    private List<ulong> _rtvCountCT = new();
+    private List<ulong> _rtvCountT = new();
+    public int smena = 0;
+    public int ostavit = 0;
+    private int readyCount = 0;
+    public bool teamCommandSelected = false;
 
 
     public void OnConfigParsed(KnifeRoundConfig config)
@@ -495,7 +495,7 @@ public class KnifeRound : BasePlugin, IPluginConfig<KnifeRoundConfig>
         OnSpawn.Clear();
         _rtvCountT.Clear();
         _rtvCountCT.Clear();
-        knifemode = false;
+        knifemode = false;  
         CTWINNER = false;
         TWINNER = false;
         BlockTeam = false;
