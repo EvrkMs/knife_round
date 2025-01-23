@@ -22,6 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.301" />
     <PackageReference Include="Microsoft.Extensions.Localization" Version="*" />
   </ItemGroup>
 </Project>

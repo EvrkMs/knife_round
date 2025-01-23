@@ -1,558 +1,544 @@
-using CounterStrikeSharp.API;
+п»їusing CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Utils;
-using CounterStrikeSharp.API.Modules.Cvars;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Core.Attributes;
+using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Cvars;
+using CounterStrikeSharp.API.Modules.Timers;
+using CounterStrikeSharp.API.Modules.Utils;
 
-using System.Diagnostics;
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
-// Наш кастомный конфиг
+// Р”РѕРїСѓСЃС‚РёРј, РІР°С€ РєРѕРЅС„РёРі
 using MyCustomConfig;
+using CounterStrikeSharp.API.Modules.Entities;
+using System.Numerics;
 
-namespace Knife_Round
+namespace knife_round;
+
+[MinimumApiVersion(164)]
+public class KnifeRoundPlugin : BasePlugin
 {
-    [MinimumApiVersion(164)]
-    public class KnifeRound : BasePlugin
+    public override string ModuleName => "Knife Round";
+    public override string ModuleVersion => "3.3.0";
+
+    // --------------------------------------
+    //   Р“Р»РѕР±Р°Р»СЊРЅС‹Рµ РїРѕР»СЏ
+    // --------------------------------------
+    public bool knifemode = false;   // РёРґС‘С‚ Р»Рё РЅРѕР¶
+    public bool TWINNER = false;     // РєС‚Рѕ РїРѕР±РµРґРёР» РЅРѕР¶
+    public bool CTWINNER = false;
+    public bool BlockTeam = false;   // Р±Р»РѕРєРёСЂСѓРµРј jointeam
+    public bool infiniteWarmupActive = true; // В«РІРµС‡РЅР°СЏВ» СЂР°Р·РјРёРЅРєР° РґРѕ !start
+    public bool WinMessageSent = false;      // РѕС‚РїСЂР°РІР»СЏР»Рё Р»Рё СЃРѕРѕР±С‰РµРЅРёРµ Рѕ !switch / !stay
+
+    // Р“РѕР»РѕСЃР° switch/stay
+    public int smena = 0;   // !switch
+    public int ostavit = 0; // !stay
+    public List<ulong> _rtvCountCT = new();
+    public List<ulong> _rtvCountT = new();
+
+    // Р“РѕР»РѕСЃР° Р·Р° !start
+    public Dictionary<ulong, bool> playersStartVoted = new();
+
+    // РЎРѕС…СЂР°РЅСЏРµРј В«РѕР±С‹С‡РЅС‹РµВ» cvars
+    public float mp_roundtime;
+    public float mp_roundtime_defuse;
+    public float mp_team_intro_time;
+
+    // Р”Р»СЏ СѓРґР°Р»РµРЅРёСЏ РѕСЂСѓР¶РёСЏ РєСЂРѕРјРµ РЅРѕР¶Р°
+    private Dictionary<ulong, bool> OnSpawn = new();
+
+    // --------------------------------------
+    //   LOAD / UNLOAD
+    // --------------------------------------
+    public override void Load(bool hotReload)
     {
-        public override string ModuleName => "Knife Round";
-        public override string ModuleVersion => "2.0.1";
+        // Р—Р°РіСЂСѓР¶Р°РµРј РєРѕРЅС„РёРі
+        MyConfigManager.LoadConfig();
 
-        private Stopwatch stopwatch = new();
+        // РЎС‚Р°РІРёРј РІРµС‡РЅСѓСЋ СЂР°Р·РјРёРЅРєСѓ
+        Server.ExecuteCommand("mp_warmup_pausetimer 1");
 
-        // Состояние плагина
-        private Dictionary<ulong, bool> OnSpawn = new();
+        AddCommandListener("jointeam", OnCommandJoinTeam, HookMode.Pre);
+        RegisterListener<Listeners.OnTick>(OnTick);
+        RegisterListener<Listeners.OnMapEnd>(OnMapEnd);
+        RegisterListener<Listeners.OnClientPutInServer>(OnClientPutInServer);
+        RegisterListener<Listeners.OnClientDisconnect>(OnClientDisconnect);
 
-        public float mp_roundtime;
-        public float mp_roundtime_defuse;
-        public float mp_team_intro_time;
+        Console.WriteLine("[KnifeRoundPlugin] Loaded. V3.3.0");
+    }
 
-        public bool knifemode = false;
-        public bool CTWINNER = false;
-        public bool TWINNER = false;
-        public bool BlockTeam = false;
-        public bool onroundstart = false;
-        public bool knifestarted = false;
-        public bool WinMessageSent = false;
+    public override void Unload(bool hotReload)
+    {
+        knifemode = false;
+        TWINNER = false;
+        CTWINNER = false;
+        BlockTeam = false;
+        infiniteWarmupActive = false;
+        WinMessageSent = false;
 
-        public int currentVotesT = 0;
-        public int currentVotesCT = 0;
-        public int smena = 0;
-        public int ostavit = 0;
-        public int readyCount = 0;
+        smena = 0;
+        ostavit = 0;
+        _rtvCountCT.Clear();
+        _rtvCountT.Clear();
+        playersStartVoted.Clear();
+        OnSpawn.Clear();
 
-        private string targetPlayerName = "";
+        Console.WriteLine("[KnifeRoundPlugin] Unloaded.");
+    }
 
-        // Списки для голосования
-        private List<ulong> _rtvCountCT = new();
-        private List<ulong> _rtvCountT = new();
+    // --------------------------------------
+    //   РЎРѕР±С‹С‚РёСЏ РїРѕРґРєР»СЋС‡РµРЅРёСЏ/СѓС…РѕРґ
+    // --------------------------------------
+    private void OnClientPutInServer(int slot)
+    {
+        var pl = Utilities.GetPlayerFromSlot(slot);
+        if (pl == null || !pl.IsValid) return;
+        if (IsBotPlayer(pl)) return;
 
-        public override void Load(bool hotReload)
+        if (!playersStartVoted.ContainsKey(pl.SteamID))
+            playersStartVoted[pl.SteamID] = false;
+    }
+
+    private void OnClientDisconnect(int slot)
+    {
+        var pl = Utilities.GetPlayerFromSlot(slot);
+        if (pl == null || !pl.IsValid) return;
+
+        if (playersStartVoted.ContainsKey(pl.SteamID))
+            playersStartVoted.Remove(pl.SteamID);
+    }
+
+    // --------------------------------------
+    //   РљРѕРјР°РЅРґР° !start (РґРѕ РЅРѕР¶Р°)
+    // --------------------------------------
+    [ConsoleCommand("start", "Vote to start the knife round.")]
+    [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
+    public void StartGameCommand(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (player == null || !player.IsValid) return;
+        if (IsBotPlayer(player)) return;
+
+        // Р§С‚РѕР±С‹ РЅРµР»СЊР·СЏ Р±С‹Р»Рѕ РІС‹Р·РІР°С‚СЊ !start РїРѕСЃР»Рµ РЅРѕР¶Р°
+        if (!infiniteWarmupActive)
         {
-            // Загружаем свой конфиг
-            MyConfigManager.LoadConfig();
-
-            AddCommandListener("jointeam", OnCommandJoinTeam, HookMode.Pre);
-            RegisterListener<Listeners.OnTick>(OnTick);
-            RegisterListener<Listeners.OnMapEnd>(OnMapEnd);
-
-            Console.WriteLine("[KnifeRound] Loaded. Custom config from C:\\server\\config\\my_knife_config.json");
+            PrintToChat(player, "!start РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РґРѕ РЅР°С‡Р°Р»Р° РЅРѕР¶РµРІРѕРіРѕ СЂР°СѓРЅРґР°.");
+            return;
         }
 
-        // =================== Определение, что это бот ==========================
-        private bool IsBotPlayer(CCSPlayerController? pl)
+        ulong sid = player.SteamID;
+        if (!playersStartVoted.ContainsKey(sid))
+            playersStartVoted[sid] = false;
+
+        if (playersStartVoted[sid])
         {
-            // У некоторых сборок боты = SteamID = 0
-            if (pl == null || !pl.IsValid) return false;
-            return (pl.SteamID == 0UL);
+            PrintToChat(player, "Р’С‹ СѓР¶Рµ РіРѕР»РѕСЃРѕРІР°Р»Рё Р·Р° СЃС‚Р°СЂС‚ РЅРѕР¶Р°!");
+            return;
         }
 
-        // =====================================================================
-        //                      JoinTeam команда
-        // =====================================================================
-        private HookResult OnCommandJoinTeam(CCSPlayerController? player, CommandInfo commandInfo)
+        playersStartVoted[sid] = true;
+        PrintToChat(player, "Р’Р°С€ РіРѕР»РѕСЃ Р·Р° Р·Р°РїСѓСЃРє РЅРѕР¶РµРІРѕРіРѕ СѓС‡С‚С‘РЅ.");
+
+        CheckAllStartVotes();
+    }
+
+    private void CheckAllStartVotes()
+    {
+        var realPlayers = Utilities.GetPlayers().Where(p => !IsBotPlayer(p) && !p.IsHLTV).ToList();
+        if (realPlayers.Count == 0) return;
+
+        bool allVoted = true;
+        foreach (var rp in realPlayers)
         {
-            // Блокируем jointeam, если включен BlockTeamChangeOnVoteAndKnife
-            if (MyConfigManager.Config.BlockTeamChangeOnVoteAndKnife && BlockTeam)
+            if (!playersStartVoted.ContainsKey(rp.SteamID) || !playersStartVoted[rp.SteamID])
             {
-                return HookResult.Handled;
+                allVoted = false;
+                break;
             }
-            return HookResult.Continue;
         }
 
-        // =====================================================================
-        //                              OnTick
-        // =====================================================================
-        public void OnTick()
+        if (allVoted)
         {
-            // Удаляем оружие, кроме ножа, если режим ножей
-            if (knifemode && BlockTeam)
+            Console.WriteLine("[KnifeRound] Р’СЃРµ СЂРµР°Р»СЊРЅС‹Рµ РёРіСЂРѕРєРё РїСЂРѕРіРѕР»РѕСЃРѕРІР°Р»Рё. Р—Р°РїСѓСЃРєР°РµРј РЅРѕР¶РµРІРѕР№.");
+
+            infiniteWarmupActive = false;
+            Server.ExecuteCommand("mp_warmup_end");
+
+            mp_roundtime = ConVar.Find("mp_roundtime")!.GetPrimitiveValue<float>();
+            mp_roundtime_defuse = ConVar.Find("mp_roundtime_defuse")!.GetPrimitiveValue<float>();
+            mp_team_intro_time = ConVar.Find("mp_team_intro_time")!.GetPrimitiveValue<float>();
+
+            knifemode = true;
+            BlockTeam = true;
+
+            // РќР°СЃС‚СЂРѕР№РєРё РЅРѕР¶Р°
+            float knifeIntro = MyConfigManager.Config.TeamIntroTimeKnifeStart; // РЅР°РїСЂ. 6.5
+            float knifeTime = MyConfigManager.Config.KnifeRoundTimer; // РЅР°РїСЂ. 2
+            // freezetime = 15 (РєР°Рє РІС‹ РїСЂРѕСЃРёР»Рё)
+            Server.ExecuteCommand(
+                $"mp_team_intro_time {knifeIntro}; " +
+                $"mp_roundtime {knifeTime}; " +
+                $"mp_roundtime_defuse {knifeTime}; " +
+                $"mp_give_player_c4 0;" +
+                $"sv_buy_status_override 3;" + // 3 => РѕС‚РєР»СЋС‡РёС‚СЊ РјР°РіР°Р·РёРЅ
+                $"mp_freezetime 15;" +
+                $"mp_warmup_pausetimer 0"
+            );
+
+            // Р—Р°РїСѓСЃРєР°РµРј mp_restartgame <knifeIntro> => РєРѕСЂРѕС‚РєРёР№ РѕС‚СЃС‡С‘С‚, Р·Р°С‚РµРј РЅРѕР¶
+            Server.ExecuteCommand($"mp_restartgame {knifeIntro}");
+
+            Utilities.GetPlayers().ForEach(p =>
             {
-                var playerEntities = Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller");
-                foreach (var player in playerEntities)
+                if (p.IsValid)
                 {
-                    if (player == null || !player.IsValid
-                        || player.PlayerPawn == null || !player.PlayerPawn.IsValid
-                        || player.PlayerPawn.Value == null || !player.PlayerPawn.Value.IsValid)
-                        continue;
-
-                    var playerid = player.SteamID;
-                    if (OnSpawn.ContainsKey(playerid))
-                    {
-                        foreach (var weapon in player.PlayerPawn.Value.WeaponServices!.MyWeapons)
-                        {
-                            if (weapon is { IsValid: true, Value.IsValid: true }
-                                && !weapon.Value.DesignerName.Contains("weapon_knife"))
-                            {
-                                player.ExecuteClientCommand("slot3");
-                                player.DropActiveWeapon();
-                                weapon.Value.Remove();
-                            }
-                        }
-                    }
+                    PrintToChat(p, "РќРѕР¶РµРІРѕР№ СЂР°СѓРЅРґ Р·Р°РїСѓСЃРєР°РµС‚СЃСЏ!");
                 }
-            }
+            });
+        }
+    }
 
-            // Если уже объявили победителя и вывели сообщение - всё
-            if ((TWINNER && WinMessageSent) || (CTWINNER && WinMessageSent))
+    // --------------------------------------
+    //    !switch / !stay
+    // --------------------------------------
+    [ConsoleCommand("switch", "Switch teams after knife round.")]
+    public void SwitchTeamCommand(CCSPlayerController? p, CommandInfo cmd)
+    {
+        if (p == null || !p.IsValid) return;
+        if ((TWINNER && p.TeamNum == (int)CsTeam.Terrorist)
+            || (CTWINNER && p.TeamNum == (int)CsTeam.CounterTerrorist))
+        {
+            ChangeTeamVote(p, true);
+        }
+    }
+
+    [ConsoleCommand("stay", "Stay on current team after knife round.")]
+    public void StayTeamCommand(CCSPlayerController? p, CommandInfo cmd)
+    {
+        if (p == null || !p.IsValid) return;
+        if ((TWINNER && p.TeamNum == (int)CsTeam.Terrorist)
+            || (CTWINNER && p.TeamNum == (int)CsTeam.CounterTerrorist))
+        {
+            ChangeTeamVote(p, false);
+        }
+    }
+
+    private void ChangeTeamVote(CCSPlayerController player, bool isSwitch)
+    {
+        ulong sid = player.SteamID;
+        if (isSwitch)
+        {
+            if (_rtvCountT.Contains(sid)) { _rtvCountT.Remove(sid); ostavit--; }
+            if (!_rtvCountCT.Contains(sid)) { _rtvCountCT.Add(sid); smena++; }
+        }
+        else
+        {
+            if (_rtvCountCT.Contains(sid)) { _rtvCountCT.Remove(sid); smena--; }
+            if (!_rtvCountT.Contains(sid)) { _rtvCountT.Add(sid); ostavit++; }
+        }
+
+        var winningTeam = TWINNER ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
+        var realWinners = Utilities.GetPlayers()
+            .Where(p => p.TeamNum == (int)winningTeam && !IsBotPlayer(p) && !p.IsHLTV)
+            .ToList();
+        if (realWinners.Count == 0) return;
+
+        int required = (int)Math.Ceiling(realWinners.Count * 0.6);
+        if (smena >= required)
+        {
+            ForceSidesChosen(true);
+        }
+        else if (ostavit >= required)
+        {
+            ForceSidesChosen(false);
+        }
+        else
+        {
+            PrintVoteInfo();
+        }
+    }
+
+    private void PrintVoteInfo()
+    {
+        var winningTeam = TWINNER ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
+        var winners = Utilities.GetPlayers().Where(w => w.TeamNum == (int)winningTeam);
+        foreach (var w in winners)
+        {
+            if (!w.IsValid) continue;
+            w.PrintToChat($"{ChatColors.Green}[" + $"{ChatColors.Purple}AVA{ChatColors.Green}]!switch => {ChatColors.Purple}{smena}{ChatColors.Green} РіРѕР»РѕСЃРѕРІ, !stay => {ChatColors.Purple}{ostavit}{ChatColors.Green} РіРѕР»РѕСЃРѕРІ"
+            );
+        }
+    }
+
+    // РљРѕРіРґР° РіРѕР»РѕСЃРѕРІ РґРѕСЃС‚Р°С‚РѕС‡РЅРѕ вЂ” Р·Р°РїСѓСЃРєР°РµРј Р»РѕРіРёРєСѓ РѕР±С‹С‡РЅРѕР№ РёРіСЂС‹
+    private void ForceSidesChosen(bool doSwitch)
+    {
+        TWINNER = false;
+        CTWINNER = false;
+        BlockTeam = false;
+
+        _rtvCountCT.Clear();
+        _rtvCountT.Clear();
+
+        if (doSwitch)
+        {
+            // РњРµРЅСЏРµРј РєРѕРјР°РЅРґС‹
+            foreach (var pl in Utilities.GetPlayers())
             {
-                return;
-            }
-
-            // Если кто-то победил (TWINNER/CTWINNER), выводим голосование
-            if (TWINNER || CTWINNER)
-            {
-                var winningTeam = TWINNER ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
-                var winningPlayers = Utilities.GetPlayers().Where(p => p.TeamNum == (int)winningTeam).ToList();
-
-                foreach (var pl in winningPlayers)
-                {
-                    if (pl == null || !pl.IsValid) continue;
-                    pl.PrintToChat($"[{ChatColors.Purple}{MyConfigManager.Config.ChatDisplayName}\x01] {ChatColors.Green}{MyConfigManager.Config.VoitMessgae}");
-                    pl.PrintToChat($"[{ChatColors.Purple}{MyConfigManager.Config.ChatDisplayName}\x01] {ChatColors.Purple}!switch{ChatColors.Green} - {MyConfigManager.Config.SwitchMeesage}");
-                    pl.PrintToChat($"[{ChatColors.Purple}{MyConfigManager.Config.ChatDisplayName}\x01] {ChatColors.Purple}!stay{ChatColors.Green} - {MyConfigManager.Config.StayMeesage}");
-                }
-
-                WinMessageSent = true;
+                if (!pl.IsValid) continue;
+                if (pl.TeamNum == (int)CsTeam.Terrorist)
+                    pl.SwitchTeam(CsTeam.CounterTerrorist);
+                else if (pl.TeamNum == (int)CsTeam.CounterTerrorist)
+                    pl.SwitchTeam(CsTeam.Terrorist);
             }
         }
 
-        // =====================================================================
-        //                   События старта/конца раунда
-        // =====================================================================
-        [GameEventHandler]
-        public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
+        // Р’РєР»СЋС‡Р°РµРј РјР°РіР°Р·РёРЅ, freezetime=15, C4=1
+        float normalIntro = 10f; // РїСЂРѕР±СѓРµРј 10
+        Server.ExecuteCommand(
+            $"mp_team_intro_time {normalIntro}; " +
+            $"mp_roundtime {mp_roundtime}; " +
+            $"mp_roundtime_defuse {mp_roundtime_defuse}; " +
+            $"mp_freezetime 15; " +
+            $"sv_buy_status_override -1; " +
+            $"mp_give_player_c4 1;" +
+            $"mp_warmup_end"
+        );
+
+        // mp_restartgame 1 => РєРѕСЂРѕС‚РєР°СЏ РїР°СѓР·Р°
+    Server.ExecuteCommand($"mp_restartgame {normalIntro}");
+
+    // Р§РµСЂРµР· normalIntro + 0.5 в†’ РіРѕРІРѕСЂРёРј "РРіСЂР° РЅР°С‡Р°Р»Р°СЃСЊ!"
+    AddTimer(normalIntro + 0.5f, () =>
+    {
+        foreach (var pl in Utilities.GetPlayers())
         {
-            if (@event == null)
-                return HookResult.Continue;
-
-            if (onroundstart)
+            if (pl.IsValid)
             {
-                if (knifemode)
-                {
-                    BlockTeam = true;
-                    knifestarted = true;
-                    // "Ножи на готове"
-                    Utilities.GetPlayers().ForEach(player =>
-                    {
-                        if (player != null && player.IsValid)
-                        {
-                            player.PrintToChat($"{ChatColors.Blue}[{ChatColors.Purple}{MyConfigManager.Config.ChatDisplayName}\x01]{ChatColors.Blue}{MyConfigManager.Config.StartMessage}");
-                        }
-                    });
-                }
+                pl.PrintToChat($"{ChatColors.Green}РРіСЂР° РЅР°С‡Р°Р»Р°СЃСЊ!!!");
             }
-            else
+        }
+        Unload(false);
+    });
+    }
+
+    // --------------------------------------
+    //   OnRoundEnd(РЅРѕР¶)
+    // --------------------------------------
+    [GameEventHandler(HookMode.Post)]
+    public HookResult OnRoundEnd(EventRoundEnd e, GameEventInfo info)
+    {
+        if (!knifemode) return HookResult.Continue;
+        if (e == null) return HookResult.Continue;
+
+        // РџРѕРґСЃС‡РёС‚С‹РІР°РµРј РїРѕР±РµРґРёС‚РµР»СЏ
+        int countT = 0, countCT = 0;
+        var players = Utilities.GetPlayers();
+        foreach (var p in players)
+        {
+            if (!p.IsValid) continue;
+            if (p.PlayerPawn?.Value != null
+                && p.PlayerPawn.Value.LifeState == (byte)LifeState_t.LIFE_ALIVE)
             {
-                // Запоминаем cvars
-                mp_roundtime = ConVar.Find("mp_roundtime")!.GetPrimitiveValue<float>();
-                mp_roundtime_defuse = ConVar.Find("mp_roundtime_defuse")!.GetPrimitiveValue<float>();
-                mp_team_intro_time = ConVar.Find("mp_team_intro_time")!.GetPrimitiveValue<float>();
-
-                knifemode = true;
-                onroundstart = true;
+                if (p.TeamNum == (int)CsTeam.Terrorist) countT++;
+                else if (p.TeamNum == (int)CsTeam.CounterTerrorist) countCT++;
             }
+        }
+        if (countT > countCT) TWINNER = true;
+        else if (countCT > countT) CTWINNER = true;
+        else CTWINNER = true; // РїСЂРё СЂР°РІРµРЅСЃС‚РІРµ => CT
 
-            if (knifemode)
+        knifemode = false;
+        BlockTeam = true;
+
+        // Р’РѕС‚ Р·РґРµСЃСЊ вЂ” В«РїР°СѓР·Р°В» + В«win РїР°РЅРµР»СЊВ»?
+        // 1) РќР°РїСЂРёРјРµСЂ, mp_match_end_restart 1 => Р·Р°СЃС‚Р°РІР»СЏРµРј РїРѕРєР°Р·Р°С‚СЊ "СЌРєСЂР°РЅ РєРѕРЅС†Р° РјР°С‚С‡Р°"
+        // 2) Р§РµСЂРµР· 2 СЃРµРєСѓРЅРґС‹ Р·Р°РїСѓСЃРєР°РµРј В«СЂР°Р·РјРёРЅРєСѓ 180 СЃРµРєВ» РґР»СЏ РІС‹Р±РѕСЂР° СЃС‚РѕСЂРѕРЅ
+        Server.ExecuteCommand("mp_match_end_restart 1"); // РџРѕРєР°Р·С‹РІР°РµС‚ РїР°РЅРµР»СЊ РїРѕР±РµРґРёС‚РµР»СЏ
+        // Р—Р°С‚РµРј С‡РµСЂРµР· 2 СЃРµРєСѓРЅРґС‹ вЂ” СЂР°Р·РјРёРЅРєР° РґР»СЏ РіРѕР»РѕСЃРѕРІР°РЅРёСЏ
+        AddTimer(2.0f, () =>
+        {
+            // Р—Р°РїСѓСЃРєР°РµРј СЂР°Р·РјРёРЅРєСѓ РЅР° 180 СЃРµРє
+            Server.ExecuteCommand("mp_warmuptime 180");
+            Server.ExecuteCommand("mp_warmup_start");
+
+            // РљРѕРіРґР° 180 СЃРµРє РёСЃС‚РµС‡С‘С‚ вЂ” СЃРјРѕС‚СЂРёРј, РєС‚Рѕ РїРѕР±РµРґРёР» (switch / stay)
+            AddTimer(180f, () => ResolveSideChoiceTimeExpired(), TimerFlags.STOP_ON_MAPCHANGE);
+        });
+
+        foreach (var pl in players)
+        {
+            if (!pl.IsValid) continue;
+            PrintToChat(pl, "РќРѕР¶РµРІРѕР№ Р·Р°РєРѕРЅС‡РёР»СЃСЏ! РџРѕР±РµРґРёС‚РµР»Рё РјРѕРіСѓС‚ РіРѕР»РѕСЃРѕРІР°С‚СЊ !switch / !stay РІ С‚РµС‡РµРЅРёРµ 180 СЃРµРєСѓРЅРґ.");
+        }
+
+        return HookResult.Continue;
+    }
+
+    /// <summary>
+    /// Р’С‹Р·С‹РІР°РµС‚СЃСЏ, РєРѕРіРґР° 180 СЃРµРєСѓРЅРґ СЂР°Р·РјРёРЅРєРё РЅР° РіРѕР»РѕСЃРѕРІР°РЅРёРµ РёСЃС‚РµРєР»Рё.
+    /// </summary>
+    private void ResolveSideChoiceTimeExpired()
+    {
+        // Р•СЃР»Рё TWINNER||CTWINNER РІСЃС‘ РµС‰С‘ true вЂ” Р·РЅР°С‡РёС‚, BlockTeam => РЅРёРєС‚Рѕ РЅРµ Р·Р°РІРµСЂС€РёР» РіРѕР»РѕСЃ
+        // РЎРјРѕС‚СЂРёРј smena vs ostavit
+        if (!BlockTeam)
+        {
+            // РЎС‚РѕСЂРѕРЅС‹ СѓР¶Рµ РІС‹Р±СЂР°РЅС‹
+            return;
+        }
+
+        // 1) РЎСЂР°РІРЅРёРІР°РµРј smena vs ostavit
+        if (smena > ostavit)
+        {
+            ForceSidesChosen(true);
+        }
+        else if (ostavit > smena)
+        {
+            ForceSidesChosen(false);
+        }
+        else
+        {
+            // Р Р°РІРµРЅСЃС‚РІРѕ / РЅРµС‚ РіРѕР»РѕСЃРѕРІ => switch
+            ForceSidesChosen(true);
+        }
+    }
+
+    // --------------------------------------
+    //  OnPlayerSpawn => РІС‹РґР°С‡Р° РЅРѕР¶РµРІРѕР№ Р±СЂРѕРЅРё
+    // --------------------------------------
+    [GameEventHandler]
+    public HookResult EventPlayerSpawn(EventPlayerSpawn e, GameEventInfo info)
+    {
+        if (e == null) return HookResult.Continue;
+        var p = e.Userid;
+        if (p == null || !p.IsValid) return HookResult.Continue;
+
+        if (knifemode && BlockTeam)
+        {
+            ulong sid = p.SteamID;
+            OnSpawn[sid] = true;
+
+            // Р’С‹РґР°С‘Рј Р±СЂРѕРЅСЋ:
+            if (MyConfigManager.Config.GiveArmorOnKnifeRound == 1)
+                p.GiveNamedItem("item_kevlar");
+            else if (MyConfigManager.Config.GiveArmorOnKnifeRound == 2)
+                p.GiveNamedItem("item_assaultsuit");
+
+            AddTimer(2f, () => { OnSpawn.Remove(sid); }, TimerFlags.STOP_ON_MAPCHANGE);
+        }
+        else
+        {
+            if ((TWINNER || CTWINNER) && MyConfigManager.Config.FreezeOnVote)
             {
                 Server.NextFrame(() =>
                 {
-                    Server.ExecuteCommand(
-                        $"mp_team_intro_time {MyConfigManager.Config.TeamIntroTimeKnifeStart}; " +
-                        $"sv_buy_status_override 3; " +
-                        $"mp_roundtime {MyConfigManager.Config.KnifeRoundTimer}; " +
-                        $"mp_roundtime_defuse {MyConfigManager.Config.KnifeRoundTimer}; " +
-                        $"mp_give_player_c4 0"
-                    );
+                    if (p.PlayerPawn?.Value != null)
+                        p.PlayerPawn.Value.MoveType = MoveType_t.MOVETYPE_NONE;
                 });
             }
-
-            return HookResult.Continue;
         }
 
-        [GameEventHandler]
-        public HookResult EventRoundPrestart(EventRoundPrestart @event, GameEventInfo info)
+        return HookResult.Continue;
+    }
+
+    // --------------------------------------
+    //  OnTick => СѓР±РёСЂР°РµРј РѕСЂСѓР¶РёРµ РєСЂРѕРјРµ РЅРѕР¶Р°
+    // --------------------------------------
+    public void OnTick()
+    {
+        if (infiniteWarmupActive) return;
+
+        if (knifemode && BlockTeam)
         {
-            if (onroundstart && knifemode)
+            var plist = Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller");
+            foreach (var p in plist)
             {
-                BlockTeam = true;
-            }
-            return HookResult.Continue;
-        }
-
-        [GameEventHandler]
-        public HookResult EventPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
-        {
-            if (@event == null)
-                return HookResult.Continue;
-
-            var player = @event.Userid;
-            if (player == null || !player.IsValid
-                || player.PlayerPawn == null || !player.PlayerPawn.IsValid
-                || player.PlayerPawn.Value == null || !player.PlayerPawn.Value.IsValid)
-            {
-                return HookResult.Continue;
-            }
-
-            var playerid = player.SteamID;
-
-            if (knifemode && BlockTeam)
-            {
-                if (!OnSpawn.ContainsKey(playerid))
-                {
-                    OnSpawn.Add(playerid, true);
-                }
-
-                if (OnSpawn.ContainsKey(playerid))
-                {
-                    // Выдаём броню
-                    if (MyConfigManager.Config.GiveArmorOnKnifeRound == 1)
-                    {
-                        player.GiveNamedItem("item_kevlar");
-                    }
-                    else if (MyConfigManager.Config.GiveArmorOnKnifeRound == 2)
-                    {
-                        player.GiveNamedItem("item_assaultsuit");
-                    }
-
-                    Server.NextFrame(() =>
-                    {
-                        AddTimer(2.0f, () =>
-                        {
-                            OnSpawn.Remove(playerid);
-                        }, TimerFlags.STOP_ON_MAPCHANGE);
-                    });
-                }
-            }
-            else if (!knifemode)
-            {
-                // Если нож закончился, но идёт голосование
-                if (TWINNER || CTWINNER)
-                {
-                    Server.NextFrame(() =>
-                    {
-                        if (MyConfigManager.Config.FreezeOnVote)
-                        {
-                            if (player.PlayerPawn.Value.IsValid)
-                            {
-                                player.PlayerPawn.Value.MoveType = MoveType_t.MOVETYPE_NONE;
-                            }
-                        }
-                    });
-                }
-            }
-
-            return HookResult.Continue;
-        }
-
-        [GameEventHandler(HookMode.Post)]
-        public HookResult OnRoundEnd(EventRoundEnd @event, GameEventInfo info)
-        {
-            if (@event == null || !knifemode)
-                return HookResult.Continue;
-
-            stopwatch.Start();
-            int countT = 0;
-            int countCT = 0;
-
-            var players = Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller");
-            foreach (var p in players)
-            {
-                if (p == null || !p.IsValid
-                    || p.PlayerPawn == null || !p.PlayerPawn.IsValid
-                    || p.PlayerPawn.Value == null || !p.PlayerPawn.Value.IsValid)
+                if (p == null || !p.IsValid)
                     continue;
 
-                // Выжившие
-                if (p.TeamNum == (int)CsTeam.Terrorist && p.PlayerPawn.Value.LifeState == (byte)LifeState_t.LIFE_ALIVE)
-                    countT++;
+                if (p.PlayerPawn?.Value == null || !p.PlayerPawn.Value.IsValid)
+                    continue;
 
-                if (p.TeamNum == (int)CsTeam.CounterTerrorist && p.PlayerPawn.Value.LifeState == (byte)LifeState_t.LIFE_ALIVE)
-                    countCT++;
-            }
+                if (p.PlayerPawn.Value.WeaponServices?.MyWeapons == null)
+                    continue;
 
-            if (countT > countCT)
-            {
-                TWINNER = true;
-            }
-            else if (countCT > countT)
-            {
-                CTWINNER = true;
-            }
-            else
-            {
-                // При равенстве CT
-                CTWINNER = true;
-            }
-
-            BlockTeam = true;
-            knifemode = false;
-
-            // Запускаем разминку на X секунд
-            // А через X секунд, если выбор не сделан, форсим stay
-            AddTimer(5.0f, () =>
-            {
-                Server.ExecuteCommand($"mp_warmuptime {MyConfigManager.Config.WarmupTimeAfterKnif}");
-                Server.ExecuteCommand("mp_warmup_start");
-
-                // После WarmupTimeAfterKnif секунд вызываем OnWarmupTimeExpired
-                AddTimer(MyConfigManager.Config.WarmupTimeAfterKnif, OnWarmupTimeExpired, TimerFlags.STOP_ON_MAPCHANGE);
-
-            }, TimerFlags.STOP_ON_MAPCHANGE);
-
-            return HookResult.Continue;
-        }
-
-        /// <summary>
-        /// Вызывается по таймеру, когда WarmupTimeAfterKnif истекает.
-        /// Если стороны так и не выбраны (BlockTeam всё ещё true), то форсим stay.
-        /// </summary>
-        private void OnWarmupTimeExpired()
-        {
-            // Если BlockTeam уже сброшен (значит, sides выбраны) - ничего не делаем
-            if (!BlockTeam)
-                return;
-
-            // Стороны не выбраны => делаем "stay"
-            // По сути, это та же логика, что "if (switchTeam==0)" набралось нужное кол-во голосов
-            Console.WriteLine("[KnifeRound] Warmup ended with no side chosen. Forcing !stay.");
-
-            ForceStay();
-        }
-
-        /// <summary>
-        /// Принудительно запускаем логику "остаться на текущей стороне"
-        /// (как если бы все проголосовали !stay и достигли нужного процента).
-        /// </summary>
-        private void ForceStay()
-        {
-            // Просто снимаем флаги, делаем рестарт, как в нашем "ChangeTeamCommand"
-            _rtvCountT.Clear();
-            _rtvCountCT.Clear();
-            TWINNER = false;
-            CTWINNER = false;
-            BlockTeam = false;
-
-            int x = MyConfigManager.Config.AfterWinningRestartXTimes;
-            for (int i = 1; i <= x; i++)
-            {
-                float interval = i * 0.1f;
-                AddTimer(interval, () =>
+                foreach (var w in p.PlayerPawn.Value.WeaponServices.MyWeapons)
                 {
-                    // Ставим mp_team_intro_time => интро
-                    Server.ExecuteCommand($"mp_team_intro_time {MyConfigManager.Config.TeamIntroTimeAfterKnife}");
-                    // Рестарт
-                    Server.ExecuteCommand("mp_restartgame 1");
+                    if (w == null || !w.IsValid || w.Value == null || !w.Value.IsValid)
+                        continue;
 
-                    // Через секунду возвращаем cvars
-                    AddTimer(1.0f, () =>
+                    if (!w.Value.DesignerName.Contains("weapon_knife"))
                     {
-                        string val1 = mp_roundtime.ToString().Replace(',', '.');
-                        string val2 = mp_roundtime_defuse.ToString().Replace(',', '.');
-                        string val3 = mp_team_intro_time.ToString().Replace(',', '.');
-
-                        Server.ExecuteCommand(
-                            $"mp_warmup_end; " +
-                            $"mp_team_intro_time {val3}; " + // Возвращаем старое
-                            $"mp_roundtime {val1}; " +
-                            $"mp_roundtime_defuse {val2}; " +
-                            $"mp_give_player_c4 1;"
-                        );
-                    });
-                }, TimerFlags.STOP_ON_MAPCHANGE);
-            }
-        }
-
-        // =====================================================================
-        //                         Голосование !switch / !stay
-        // =====================================================================
-        [ConsoleCommand("switch", "Switch teams after knife round.")]
-        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
-        public void SwitchTeamCommand(CCSPlayerController? player, CommandInfo cmd)
-        {
-            if ((TWINNER && player?.TeamNum == (int)CsTeam.Terrorist)
-                || (CTWINNER && player?.TeamNum == (int)CsTeam.CounterTerrorist))
-            {
-                ChangeTeamCommand(player, cmd, 1);
-            }
-        }
-
-        [ConsoleCommand("stay", "Stay on current team after knife round.")]
-        public void StayTeamCommand(CCSPlayerController? player, CommandInfo cmd)
-        {
-            if ((TWINNER && player?.TeamNum == (int)CsTeam.Terrorist)
-                || (CTWINNER && player?.TeamNum == (int)CsTeam.CounterTerrorist))
-            {
-                ChangeTeamCommand(player, cmd, 0);
-            }
-        }
-
-        private void ChangeTeamCommand(CCSPlayerController? player, CommandInfo cmd, int switchTeam)
-        {
-            if (player == null || !player.IsValid) return;
-
-            // Не учитываем голос бота
-            if (IsBotPlayer(player)) return;
-
-            targetPlayerName = player.PlayerName;
-            if (!player.UserId.HasValue || string.IsNullOrEmpty(targetPlayerName))
-                return;
-
-            var rtvCount = (switchTeam == 0) ? _rtvCountT : _rtvCountCT;
-            var otherRtvCount = (switchTeam == 0) ? _rtvCountCT : _rtvCountT;
-            var teamToSwitch = (switchTeam == 0) ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
-
-            if (TWINNER || CTWINNER)
-            {
-                if (rtvCount.Contains(player.SteamID))
-                {
-                    rtvCount.Remove(player.SteamID);
-                    if (switchTeam == 0) currentVotesT--;
-                    else currentVotesCT--;
-                }
-
-                if (switchTeam == 0) ostavit++;
-                else smena++;
-
-                if (otherRtvCount.Contains(player.SteamID))
-                    return;
-
-                otherRtvCount.Add(player.SteamID);
-
-                // Считаем реальные игроки (не боты, не HLTV)
-                var councT = Utilities.GetPlayers().Count(
-                    p => p.TeamNum == (int)CsTeam.Terrorist && !p.IsHLTV && !IsBotPlayer(p)
-                );
-                var councCT = Utilities.GetPlayers().Count(
-                    p => p.TeamNum == (int)CsTeam.CounterTerrorist && !p.IsHLTV && !IsBotPlayer(p)
-                );
-
-                var required = (int)Math.Ceiling((switchTeam == 0 ? councT : councCT) * 0.6);
-                var currentVotes = (switchTeam == 0) ? _rtvCountCT.Count : _rtvCountT.Count;
-
-                if (currentVotes >= required)
-                {
-                    // Если switchTeam=1 (смена стороны) - переводим всех
-                    if (switchTeam == 1)
-                    {
-                        foreach (var pl in Utilities.GetPlayers().Where(x => x.IsValid))
-                        {
-                            pl.SwitchTeam(teamToSwitch);
-                        }
+                        p.ExecuteClientCommand("slot3");
+                        p.DropActiveWeapon();
+                        w.Value.Remove();
                     }
-
-                    Server.NextFrame(() =>
-                    {
-                        _rtvCountT.Clear();
-                        _rtvCountCT.Clear();
-                        TWINNER = false;
-                        CTWINNER = false;
-                        BlockTeam = false;
-
-                        int x = MyConfigManager.Config.AfterWinningRestartXTimes;
-                        for (int i = 1; i <= x; i++)
-                        {
-                            float interval = i * 0.1f;
-                            AddTimer(interval, () =>
-                            {
-                                // Ставим интро
-                                Server.ExecuteCommand($"mp_team_intro_time {MyConfigManager.Config.TeamIntroTimeAfterKnife}");
-                                Server.ExecuteCommand("mp_restartgame 1");
-
-                                // Через секунду возвращаем cvars
-                                AddTimer(1.0f, () =>
-                                {
-                                    string val1 = mp_roundtime.ToString().Replace(',', '.');
-                                    string val2 = mp_roundtime_defuse.ToString().Replace(',', '.');
-                                    string val3 = mp_team_intro_time.ToString().Replace(',', '.');
-
-                                    Server.ExecuteCommand(
-                                        $"mp_warmup_end; " +
-                                        $"mp_team_intro_time {val3}; " +
-                                        $"mp_roundtime {val1}; " +
-                                        $"mp_roundtime_defuse {val2}; " +
-                                        $"mp_give_player_c4 1;"
-                                    );
-                                });
-                            }, TimerFlags.STOP_ON_MAPCHANGE);
-                        }
-                    });
-                }
-
-                // Вывод голосов
-                var winningTeam = TWINNER ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
-                var winningPlayers = Utilities.GetPlayers().Where(p => p.TeamNum == (int)winningTeam);
-                foreach (var pw in winningPlayers)
-                {
-                    if (pw == null || !pw.IsValid) continue;
-
-                    pw.PrintToChat($"[{ChatColors.Purple}{MyConfigManager.Config.ChatDisplayName}\x01] {ChatColors.Purple}!switch\x01 - {ChatColors.Red}{smena} голосов");
-                    pw.PrintToChat($"[{ChatColors.Purple}{MyConfigManager.Config.ChatDisplayName}\x01] {ChatColors.Purple}!stay\x01 - {ChatColors.Red}{ostavit} голосов");
                 }
             }
         }
 
-        // =====================================================================
-        //                  Отключение/перезагрузка плагина
-        // =====================================================================
-        public override void Unload(bool hotReload)
+        if ((TWINNER || CTWINNER) && !WinMessageSent)
         {
-            OnSpawn.Clear();
-            _rtvCountT.Clear();
-            _rtvCountCT.Clear();
-            knifemode = false;
-            CTWINNER = false;
-            TWINNER = false;
-            BlockTeam = false;
-            onroundstart = false;
-            knifestarted = false;
-            targetPlayerName = "";
-            currentVotesT = 0;
-            currentVotesCT = 0;
-            readyCount = 0;
+            var winningTeam = TWINNER ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
+            var wList = Utilities.GetPlayers().Where(x => x.TeamNum == (int)winningTeam);
+            foreach (var w in wList)
+            {
+                if (!w.IsValid) continue;
+                PrintToChat(w, "РСЃРїРѕР»СЊР·СѓР№С‚Рµ !switch / !stay РґР»СЏ РІС‹Р±РѕСЂР° СЃС‚РѕСЂРѕРЅС‹.");
+            }
+            WinMessageSent = true;
         }
+    }
 
-        private void OnMapEnd()
+    // --------------------------------------
+    //  jointeam (Р±Р»РѕРє)
+    // --------------------------------------
+    private HookResult OnCommandJoinTeam(CCSPlayerController? p, CommandInfo cmd)
+    {
+        if (p == null || !p.IsValid) return HookResult.Continue;
+        if (MyConfigManager.Config.BlockTeamChangeOnVoteAndKnife && BlockTeam)
         {
-            OnSpawn.Clear();
-            _rtvCountT.Clear();
-            _rtvCountCT.Clear();
-            knifemode = false;
-            CTWINNER = false;
-            TWINNER = false;
-            BlockTeam = false;
-            onroundstart = false;
-            knifestarted = false;
-            targetPlayerName = "";
-            currentVotesT = 0;
-            currentVotesCT = 0;
-            smena = 0;
-            ostavit = 0;
+            return HookResult.Handled;
         }
+        return HookResult.Continue;
+    }
+
+    // --------------------------------------
+    //  OnMapEnd => СЃР±СЂРѕСЃ
+    // --------------------------------------
+    private void OnMapEnd()
+    {
+        knifemode = false;
+        TWINNER = false;
+        CTWINNER = false;
+        BlockTeam = false;
+        infiniteWarmupActive = false;
+        WinMessageSent = false;
+
+        _rtvCountCT.Clear();
+        _rtvCountT.Clear();
+        playersStartVoted.Clear();
+        OnSpawn.Clear();
+
+        smena = 0;
+        ostavit = 0;
+    }
+
+    // --------------------------------------
+    //  РџРѕРјРѕС‰РЅРёРє: Р±РѕС‚?
+    // --------------------------------------
+    public bool IsBotPlayer(CCSPlayerController pl)
+    {
+        if (!pl.IsValid) return false;
+        return (pl.SteamID == 0UL || pl.IsBot);
+    }
+
+    private static void PrintToChat(CCSPlayerController p, string message)
+    {
+        p.PrintToChat($"{ChatColors.Green}[{ChatColors.Purple}AVA{ChatColors.Green}] {message}");
     }
 }
