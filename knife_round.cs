@@ -309,20 +309,20 @@ public class KnifeRoundPlugin : BasePlugin
         );
 
         // mp_restartgame 1 => короткая пауза
-    Server.ExecuteCommand($"mp_restartgame {normalIntro}");
+        Server.ExecuteCommand($"mp_restartgame {normalIntro}");
 
-    // Через normalIntro + 0.5 → говорим "Игра началась!"
-    AddTimer(normalIntro + 0.5f, () =>
-    {
-        foreach (var pl in Utilities.GetPlayers())
+        // Через normalIntro + 0.5 → говорим "Игра началась!"
+        AddTimer(normalIntro + 0.5f, () =>
         {
-            if (pl.IsValid)
+            foreach (var pl in Utilities.GetPlayers())
             {
-                pl.PrintToChat($"{ChatColors.Green}Игра началась!!!");
+                if (pl.IsValid)
+                {
+                    pl.PrintToChat($"{ChatColors.Green}Игра началась!!!");
+                }
             }
-        }
-        Unload(false);
-    });
+            Unload(false);
+        });
     }
 
     // --------------------------------------
