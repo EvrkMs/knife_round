@@ -7,14 +7,8 @@ using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 // Допустим, ваш конфиг
 using MyCustomConfig;
-using CounterStrikeSharp.API.Modules.Entities;
-using System.Numerics;
 
 namespace knife_round;
 
