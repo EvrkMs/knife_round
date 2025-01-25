@@ -16,7 +16,7 @@ namespace knife_round;
 public class KnifeRoundPlugin : BasePlugin
 {
     public override string ModuleName => "Knife Round";
-    public override string ModuleVersion => "3.3.0";
+    public override string ModuleVersion => "3.4.0";
 
     // --------------------------------------
     //   Глобальные поля
